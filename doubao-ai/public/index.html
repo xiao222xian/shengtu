@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>原图 + 五段提示词生图平台</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <h1>生图平台</h1>
+        <p class="subtitle">横屏批量生图工作台，先设参数，再连续生成和保存。</p>
+
+        <form id="gen-form" class="form-grid">
+          <div>
+            <label for="apiKey">API Key（不要泄露）</label>
+            <div class="password-wrap">
+              <input id="apiKey" type="password" value="f6209a98-8ed7-46aa-9f41-7c2c9d9f8d44" />
+              <button id="toggle-api-key" type="button" class="eye-btn">显示</button>
+            </div>
+          </div>
+
+          <div>
+            <label for="baseUrl">API Base URL</label>
+            <textarea id="baseUrl">https://ark.cn-beijing.volces.com/api/v3</textarea>
+          </div>
+
+          <div>
+            <label for="model">模型</label>
+            <textarea id="model">doubao-seedream-5-0-260128</textarea>
+          </div>
+
+          <!-- 保存目录字段已隐藏：纯前端模式下由系统目录选择器决定 -->
+
+          <div>
+            <label for="namePrefix">文件名前缀</label>
+            <textarea id="namePrefix">红耳鹎-002</textarea>
+          </div>
+
+          <div>
+            <label for="image">原图（本地上传）</label>
+            <input id="image" name="image" type="file" accept="image/*" />
+          </div>
+
+          <div>
+            <label for="sourceImageUrl">原图 URL（推荐，需公网可访问）</label>
+            <textarea id="sourceImageUrl" placeholder="https://example.com/source.png"></textarea>
+          </div>
+
+          <div>
+            <label for="p1">提示词 1</label>
+            <textarea id="p1" required></textarea>
+          </div>
+          <div>
+            <label for="p2">提示词 2</label>
+            <textarea id="p2" required></textarea>
+          </div>
+          <div>
+            <label for="p3">提示词 3</label>
+            <textarea id="p3" required></textarea>
+          </div>
+          <div>
+            <label for="p4">提示词 4</label>
+            <textarea id="p4" required></textarea>
+          </div>
+          <div>
+            <label for="p5">提示词 5</label>
+            <textarea id="p5" required></textarea>
+          </div>
+
+          <div class="actions">
+            <button id="submit-btn" type="submit">开始生成</button>
+            <button id="save-btn" type="button" disabled>保存结果</button>
+          </div>
+          <div id="status" class="status"></div>
+        </form>
+      </section>
+
+      <section class="gallery">
+        <h2>结果预览</h2>
+        <section id="results" class="results"></section>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
