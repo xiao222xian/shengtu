@@ -12,6 +12,7 @@ const sourceImageUrlInput = document.getElementById("sourceImageUrl");
 
 let latestResults = [];
 let pickedDirHandle = null;
+let currentSourceImageRef = "";
 
 const savedApiKey = localStorage.getItem("apiKey") || "";
 const savedBaseUrl = localStorage.getItem("baseUrl") || "";
@@ -44,6 +45,15 @@ function getRuntimeConfig() {
     model: modelInput.value.trim() || "doubao-seedream-5-0-260128",
     sourceImageUrl: sourceImageUrlInput.value.trim(),
   };
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("读取本地图片失败。"));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function callArkGenerate({ apiKey, baseUrl, model, prompt, sourceImageUrl }) {
@@ -159,8 +169,9 @@ async function regenerateOne(index, newPrompt, btn) {
     setStatus("请先填写 API Key。", true);
     return;
   }
-  if (!config.sourceImageUrl) {
-    setStatus("单张重生需要原图 URL（纯前端模式）。", true);
+  const sourceImageRef = currentSourceImageRef || config.sourceImageUrl;
+  if (!sourceImageRef) {
+    setStatus("单张重生需要原图（URL 或本地图）。", true);
     return;
   }
   if (!newPrompt) {
@@ -176,7 +187,7 @@ async function regenerateOne(index, newPrompt, btn) {
       baseUrl: config.baseUrl,
       model: config.model,
       prompt: newPrompt,
-      sourceImageUrl: config.sourceImageUrl,
+      sourceImageUrl: sourceImageRef,
     });
     latestResults[index] = { index, prompt: newPrompt, imageUrl, success: true };
     renderResults();
@@ -252,9 +263,6 @@ form.addEventListener("submit", async (event) => {
 
   if (!apiKey) return setStatus("请先填写 API Key。", true);
   if (!sourceImageUrl && !localImage) return setStatus("请上传原图或填写原图 URL。", true);
-  if (!sourceImageUrl && localImage) {
-    return setStatus("纯前端模式下，本地图无法直接发给 Ark，请使用公网原图 URL。", true);
-  }
   if (prompts.some((p) => !p)) return setStatus("5 段提示词都要填写。", true);
 
   submitBtn.disabled = true;
@@ -263,10 +271,21 @@ form.addEventListener("submit", async (event) => {
   resultsEl.innerHTML = "";
   setStatus("正在生成，请稍候...");
 
+  let sourceImageRef = sourceImageUrl;
+  if (!sourceImageRef && localImage) {
+    try {
+      sourceImageRef = await fileToDataUrl(localImage);
+    } catch (error) {
+      submitBtn.disabled = false;
+      return setStatus(error.message || "本地图片读取失败。", true);
+    }
+  }
+  currentSourceImageRef = sourceImageRef || "";
+
   for (let i = 0; i < prompts.length; i += 1) {
     const prompt = prompts[i];
     try {
-      const imageUrl = await callArkGenerate({ apiKey, baseUrl, model, prompt, sourceImageUrl });
+      const imageUrl = await callArkGenerate({ apiKey, baseUrl, model, prompt, sourceImageUrl: sourceImageRef });
       latestResults.push({ index: i, prompt, imageUrl, success: true });
       setStatus(`生成进度：${i + 1}/5`);
     } catch (error) {
