@@ -8,7 +8,7 @@
 ## 1. 准备API key
 
 1. 注册并登录火山引擎：https://www.volcengine.com/
-2. 完成实名认证（个人或企业）
+2. 完成实名认证（个人）
 3. 点击链接
 https://console.volcengine.com/ark/region:ark+cn-beijing/model/detail?Id=doubao-seedream-5-0&Tab=model-info
 4. 点击api接入并完成创建
