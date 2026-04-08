@@ -109,9 +109,7 @@ function extFromBlobType(blobType) {
 }
 
 async function getImageBlob(url) {
-  if (String(url).startsWith("data:image/")) {
-    return dataUrlToBlob(url);
-  }
+  if (String(url).startsWith("data:image/")) return dataUrlToBlob(url);
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`下载图片失败: HTTP ${resp.status}`);
   return resp.blob();
@@ -121,21 +119,17 @@ async function pickDirectoryHandle() {
   if (!("showDirectoryPicker" in window)) {
     throw new Error("当前浏览器不支持目录写入，将回退为批量下载。");
   }
-  const handle = await window.showDirectoryPicker({ mode: "readwrite" });
-  return handle;
+  return window.showDirectoryPicker({ mode: "readwrite" });
 }
 
 async function saveAllToDirectory(results, namePrefix) {
-  if (!pickedDirHandle) {
-    pickedDirHandle = await pickDirectoryHandle();
-  }
+  if (!pickedDirHandle) pickedDirHandle = await pickDirectoryHandle();
 
   let successCount = 0;
-  for (let i = 0; i < results.length; i += 1) {
-    const item = results[i];
+  for (const item of results) {
     const blob = await getImageBlob(item.imageUrl);
     const ext = extFromBlobType(blob.type);
-    const fileName = `${namePrefix}-${item.index + 1}.${ext}`;
+    const fileName = `${namePrefix}-${item.slot + 1}.${ext}`;
     const fileHandle = await pickedDirHandle.getFileHandle(fileName, { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(blob);
@@ -146,15 +140,10 @@ async function saveAllToDirectory(results, namePrefix) {
 }
 
 async function saveAsDownloads(results, namePrefix) {
-  for (let i = 0; i < results.length; i += 1) {
-    const item = results[i];
-    const url = item.imageUrl;
-    if (!url) continue;
-
-    const fileName = `${namePrefix}-${item.index + 1}.jpg`;
+  for (const item of results) {
     const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
+    a.href = item.imageUrl;
+    a.download = `${namePrefix}-${item.slot + 1}.jpg`;
     a.target = "_blank";
     document.body.appendChild(a);
     a.click();
@@ -163,24 +152,17 @@ async function saveAsDownloads(results, namePrefix) {
   }
 }
 
-async function regenerateOne(index, newPrompt, btn) {
+async function regenerateOne(resultPos, newPrompt, btn) {
   const config = getRuntimeConfig();
-  if (!config.apiKey) {
-    setStatus("请先填写 API Key。", true);
-    return;
-  }
-  const sourceImageRef = currentSourceImageRef || config.sourceImageUrl;
-  if (!sourceImageRef) {
-    setStatus("单张重生需要原图（URL 或本地图）。", true);
-    return;
-  }
-  if (!newPrompt) {
-    setStatus("请填写新的提示词。", true);
-    return;
-  }
+  if (!config.apiKey) return setStatus("请先填写 API Key。", true);
 
+  const sourceImageRef = currentSourceImageRef || config.sourceImageUrl;
+  if (!sourceImageRef) return setStatus("单张重生需要原图（URL 或本地图）。", true);
+  if (!newPrompt) return setStatus("请填写新的提示词。", true);
+
+  const target = latestResults[resultPos];
   btn.disabled = true;
-  setStatus(`正在重生第 ${index + 1} 张...`);
+  setStatus(`正在重生第 ${target.slot + 1} 张...`);
   try {
     const imageUrl = await callArkGenerate({
       apiKey: config.apiKey,
@@ -189,13 +171,13 @@ async function regenerateOne(index, newPrompt, btn) {
       prompt: newPrompt,
       sourceImageUrl: sourceImageRef,
     });
-    latestResults[index] = { index, prompt: newPrompt, imageUrl, success: true };
+    latestResults[resultPos] = { ...target, prompt: newPrompt, imageUrl, success: true, error: "" };
     renderResults();
-    setStatus(`第 ${index + 1} 张已重新生成。`);
+    setStatus(`第 ${target.slot + 1} 张已重新生成。`);
   } catch (error) {
-    latestResults[index] = { index, prompt: newPrompt, success: false, error: error.message };
+    latestResults[resultPos] = { ...target, prompt: newPrompt, success: false, error: error.message };
     renderResults();
-    setStatus(`第 ${index + 1} 张重生失败：${error.message}`, true);
+    setStatus(`第 ${target.slot + 1} 张重生失败：${error.message}`, true);
   } finally {
     saveBtn.disabled = latestResults.filter((r) => r.success).length === 0;
     btn.disabled = false;
@@ -204,14 +186,14 @@ async function regenerateOne(index, newPrompt, btn) {
 
 function renderResults() {
   resultsEl.innerHTML = "";
-  latestResults.forEach((item) => {
+  latestResults.forEach((item, resultPos) => {
     const card = document.createElement("article");
     card.className = "card";
 
     if (item.success && item.imageUrl) {
       const img = document.createElement("img");
       img.src = item.imageUrl;
-      img.alt = `生成图 ${item.index + 1}`;
+      img.alt = `生成图 ${item.slot + 1}`;
       card.appendChild(img);
     } else {
       const error = document.createElement("div");
@@ -222,7 +204,7 @@ function renderResults() {
 
     const meta = document.createElement("div");
     meta.className = "meta";
-    meta.innerHTML = `<div>提示词 ${item.index + 1}</div>`;
+    meta.innerHTML = `<div>提示词 ${item.slot + 1}</div>`;
 
     const promptEditor = document.createElement("textarea");
     promptEditor.className = "prompt-editor";
@@ -235,8 +217,7 @@ function renderResults() {
     regenBtn.type = "button";
     regenBtn.textContent = "重新生成此张";
     regenBtn.addEventListener("click", async () => {
-      const newPrompt = promptEditor.value.trim();
-      await regenerateOne(item.index, newPrompt, regenBtn);
+      await regenerateOne(resultPos, promptEditor.value.trim(), regenBtn);
     });
 
     actions.appendChild(regenBtn);
@@ -260,16 +241,19 @@ form.addEventListener("submit", async (event) => {
     document.getElementById("p4").value.trim(),
     document.getElementById("p5").value.trim(),
   ];
+  const filledPrompts = prompts
+    .map((prompt, slot) => ({ prompt, slot }))
+    .filter((item) => item.prompt.length > 0);
 
   if (!apiKey) return setStatus("请先填写 API Key。", true);
   if (!sourceImageUrl && !localImage) return setStatus("请上传原图或填写原图 URL。", true);
-  if (prompts.some((p) => !p)) return setStatus("5 段提示词都要填写。", true);
+  if (filledPrompts.length === 0) return setStatus("至少填写 1 条提示词才会生成。", true);
 
   submitBtn.disabled = true;
   saveBtn.disabled = true;
   latestResults = [];
   resultsEl.innerHTML = "";
-  setStatus("正在生成，请稍候...");
+  setStatus(`正在生成 ${filledPrompts.length} 张，请稍候...`);
 
   let sourceImageRef = sourceImageUrl;
   if (!sourceImageRef && localImage) {
@@ -282,21 +266,27 @@ form.addEventListener("submit", async (event) => {
   }
   currentSourceImageRef = sourceImageRef || "";
 
-  for (let i = 0; i < prompts.length; i += 1) {
-    const prompt = prompts[i];
+  for (let i = 0; i < filledPrompts.length; i += 1) {
+    const { prompt, slot } = filledPrompts[i];
     try {
-      const imageUrl = await callArkGenerate({ apiKey, baseUrl, model, prompt, sourceImageUrl: sourceImageRef });
-      latestResults.push({ index: i, prompt, imageUrl, success: true });
-      setStatus(`生成进度：${i + 1}/5`);
+      const imageUrl = await callArkGenerate({
+        apiKey,
+        baseUrl,
+        model,
+        prompt,
+        sourceImageUrl: sourceImageRef,
+      });
+      latestResults.push({ slot, prompt, imageUrl, success: true, error: "" });
+      setStatus(`生成进度：${i + 1}/${filledPrompts.length}`);
     } catch (error) {
-      latestResults.push({ index: i, prompt, success: false, error: error.message });
-      setStatus(`第 ${i + 1} 张失败：${error.message}`, true);
+      latestResults.push({ slot, prompt, success: false, error: error.message });
+      setStatus(`第 ${slot + 1} 条提示词生成失败：${error.message}`, true);
     }
   }
 
   renderResults();
   const okCount = latestResults.filter((r) => r.success).length;
-  setStatus(`生成完成：成功 ${okCount} 张，失败 ${5 - okCount} 张。`);
+  setStatus(`生成完成：成功 ${okCount} 张，失败 ${latestResults.length - okCount} 张。`);
   saveBtn.disabled = okCount === 0;
   submitBtn.disabled = false;
 });
