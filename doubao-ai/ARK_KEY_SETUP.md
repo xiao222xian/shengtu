@@ -1,7 +1,8 @@
-# 火山引擎生图 Key 获取与配置教程（给生图同学）
+# 火山引擎生图 Key 获取与配置教程
 
 面向对象：进行“原图 + 提示词”生图的同学。  
-网址：`https://shengtu-dqf.pages.dev`
+网址：
+- https://shengtu-dqf.pages.dev
 
 ---
 
